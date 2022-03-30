@@ -1,8 +1,16 @@
 {
   "name": "vscode-mc-dev",
-  "displayName": "vscode-mc-dev",
+  "displayName": "MC Dev",
   "description": "VS Code tools to help with Minecraft mod development",
   "version": "0.0.1",
+  "author": {
+    "name": "Gaming32",
+    "email": "gaming32i64@gmail.com",
+    "url": "https://github.com/Gaming32"
+  },
+  "repository": {
+    "url": "https://github.com/Gaming32/vscode-mc-dev"
+  },
   "engines": {
     "vscode": "^1.65.0"
   },
