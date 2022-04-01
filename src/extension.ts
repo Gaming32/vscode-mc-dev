@@ -16,7 +16,7 @@ export function activate(context: ExtensionContext) {
                 placeHolder: "Select the mod platform"
             }
         );
-        projectType?.action();
+        projectType?.action(context);
     }));
 }
 
