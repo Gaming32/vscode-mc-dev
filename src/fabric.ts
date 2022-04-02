@@ -4,7 +4,7 @@ import { getApi, FileDownloader } from "@microsoft/vscode-file-downloader-api";
 import { existsSync } from "fs";
 import extract = require("extract-zip");
 import mv = require("mv");
-import { lstat, readdir, readFile, writeFile } from "fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, writeFile } from "fs/promises";
 import { sleep } from "./util";
 
 export async function newFabricProject(context: ExtensionContext) {
@@ -207,11 +207,29 @@ var fileOpenCount = 0;
 async function finalizeTemplate(baseDir: string, templateExpansions: {[key: string]: string}, skipFileNames: string[]) {
     const files = await readdir(baseDir);
     const promises: Promise<void>[] = [];
-    for (const file of files) {
+    for (var file of files) {
         if (skipFileNames.indexOf(file) !== -1) {
             continue;
         }
-        const fullPath = `${baseDir}/${file}`;
+        const newName = expandTemplate(file, templateExpansions);
+        var fullPath = `${baseDir}/${file}`;
+        if (newName !== file) {
+            const wasDir = await lstat(fullPath).then(stat => stat.isDirectory());
+            const newFullPath = `${baseDir}/${newName}`;
+            if (wasDir && !existsSync(newFullPath)) {
+                await mkdir(newFullPath);
+                mv(fullPath, newFullPath, {clobber: false}, err => {
+                    if (err) {
+                        window.showErrorMessage(err);
+                        console.log(err);
+                    }
+                });
+            } else {
+                await rename(fullPath, newFullPath);
+            }
+            file = newName;
+            fullPath = newFullPath;
+        }
         if (await lstat(fullPath).then(stat => stat.isDirectory())) {
             promises.push(finalizeTemplate(fullPath, templateExpansions, skipFileNames));
             continue;
@@ -227,12 +245,17 @@ async function applyTemplate(filePath: string, templateExpansions: {[key: string
     }
     fileOpenCount++;
     var body = await readFile(filePath, {encoding: "utf-8"});
-    for (const key in templateExpansions) {
-        const value = templateExpansions[key];
-        body = body.replace(`%${key}%`, value);
-    }
+    body = expandTemplate(body, templateExpansions);
     await writeFile(filePath, body, {encoding: "utf-8"});
     fileOpenCount--;
+}
+
+function expandTemplate(data: string, expansions: {[key: string]: string}) {
+    for (const key in expansions) {
+        const value = expansions[key];
+        data = data.replace(`%${key}%`, value);
+    }
+    return data;
 }
 
 async function downloadFabricGameVersions() {
