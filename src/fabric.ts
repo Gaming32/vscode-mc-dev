@@ -124,14 +124,7 @@ export async function newFabricProject(context: ExtensionContext) {
 
         prog.report({message: "Extracting template...", increment: 70 - totalProgress});
         await extract(downloadedZip, {dir: projectDir});
-        await readdir(projectDir).then(files => {
-            mv(`${projectDir}/${files[0]}`, projectDir, {clobber: false}, err => {
-                if (err) {
-                    window.showErrorMessage(err);
-                    console.log(err);
-                }
-            });
-        });
+        await readdir(projectDir).then(files => moveDir(`${projectDir}/${files[0]}`, projectDir));
 
         prog.report({message: "Requesting additional data...", increment: 10});
         var yarnVersion: FabricYarnVersion[] = [];
@@ -184,7 +177,7 @@ export async function newFabricProject(context: ExtensionContext) {
             // Just yolo and say Java 17. That can't go wrong, right?
             templateExpansions.minJavaVersion = "17";
         }
-        templateExpansions.minJavaVersionIdentifier = templateExpansions.minJavaVersion.replace(".", "_");
+        templateExpansions.minJavaVersionIdentifier = templateExpansions.minJavaVersion.replaceAll(".", "_");
         templateExpansions.mcVersion = versionItself.version;
         templateExpansions.yarnVersion = yarnVersion[0].version;
         templateExpansions.fabricLoaderVersion = loaderVersion[0].loader.version;
@@ -192,8 +185,12 @@ export async function newFabricProject(context: ExtensionContext) {
         templateExpansions.modGroupId = groupId;
         templateExpansions.modid = modid;
         templateExpansions.fabricApiVersion = "0.48.0+1.18.2 # This is hardcoded, use https://fabricmc.net/develop/ to get the version you want.";
-        templateExpansions.modPackage = `${groupId}.${modid.replace("-", "")}`;
+        templateExpansions.modPackage = `${groupId}.${modid.replaceAll("-", "")}`;
         await finalizeTemplate(projectDir, templateExpansions, ["gradle-wrapper.jar", "gradlew", "gradlew.bat"]);
+        const oldPackageDir = `${projectDir}/src/main/java/hardcodedRename`,
+              newPackageDir = `${projectDir}/src/main/java/${templateExpansions.modPackage.replaceAll(".", "/")}`;
+        await mkdir(newPackageDir, {recursive: true});
+        moveDir(oldPackageDir, newPackageDir);
     }).then(async () => {
         const choice = await window.showInformationMessage(`Project created at ${projectDir}.\nWould you like to open it now?`, "Open");
         if (choice === "Open") {
@@ -218,12 +215,7 @@ async function finalizeTemplate(baseDir: string, templateExpansions: {[key: stri
             const newFullPath = `${baseDir}/${newName}`;
             if (wasDir && !existsSync(newFullPath)) {
                 await mkdir(newFullPath);
-                mv(fullPath, newFullPath, {clobber: false}, err => {
-                    if (err) {
-                        window.showErrorMessage(err);
-                        console.log(err);
-                    }
-                });
+                moveDir(fullPath, newFullPath);
             } else {
                 await rename(fullPath, newFullPath);
             }
@@ -253,9 +245,18 @@ async function applyTemplate(filePath: string, templateExpansions: {[key: string
 function expandTemplate(data: string, expansions: {[key: string]: string}) {
     for (const key in expansions) {
         const value = expansions[key];
-        data = data.replace(`%${key}%`, value);
+        data = data.replaceAll(`%${key}%`, value);
     }
     return data;
+}
+
+function moveDir(source: string, dest: string) {
+    mv(source, dest, {clobber: false}, err => {
+        if (err) {
+            window.showErrorMessage(err);
+            console.log(err);
+        }
+    });
 }
 
 async function downloadFabricGameVersions() {
