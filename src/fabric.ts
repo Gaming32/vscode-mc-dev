@@ -1,11 +1,11 @@
-import { commands, ExtensionContext, ProgressLocation, Uri, window, workspace } from "vscode";
+import { commands, env, ExtensionContext, ProgressLocation, ShellExecution, ShellExecutionOptions, ShellQuoting, Task, TaskGroup, tasks, TaskScope, Uri, window, workspace } from "vscode";
 import fetch from "node-fetch";
 import { getApi, FileDownloader } from "@microsoft/vscode-file-downloader-api";
 import { existsSync } from "fs";
 import extract = require("extract-zip");
 import mv = require("mv");
 import { lstat, mkdir, readdir, readFile, rename, writeFile } from "fs/promises";
-import { sleep } from "./util";
+import { shellQuotes, sleep } from "./util";
 
 export async function newFabricProject(context: ExtensionContext) {
     await downloadFabricGameVersions();
@@ -191,7 +191,27 @@ export async function newFabricProject(context: ExtensionContext) {
               newPackageDir = `${projectDir}/src/main/java/${templateExpansions.modPackage.replaceAll(".", "/")}`;
         await mkdir(newPackageDir, {recursive: true});
         moveDir(oldPackageDir, newPackageDir);
-    }).then(async () => {
+    }).then(async () => { // then is used so that the progress bar closes
+        // Thanks to https://github.com/microsoft/vscode-maven/blob/b4a995a2afe4b39b2e3884344b2cfbb3b997c617/src/archetype/ArchetypeModule.ts#L97-L108
+        var gradleCommand = "gradlew vscode";
+        const options: ShellExecutionOptions = {cwd: projectDir};
+        if (env.remoteName === undefined && process.platform === "win32") {
+            options.shellQuoting = shellQuotes.cmd;
+            options.executable = "cmd.exe";
+            options.shellArgs = ["/c"];
+            gradleCommand = `"${gradleCommand}"`;
+        } else {
+            options.shellQuoting = shellQuotes.bash;
+            gradleCommand = `./${gradleCommand}`;
+        }
+        await executeTask(new Task(
+            {type: "shell"},
+            TaskScope.Global,
+            "setupProject",
+            "fabric",
+            new ShellExecution(gradleCommand, options)
+        ));
+
         const choice = await window.showInformationMessage(`Project created at ${projectDir}.\nWould you like to open it now?`, "Open");
         if (choice === "Open") {
             await commands.executeCommand("vscode.openFolder", Uri.file(projectDir), {forceNewWindow: !!workspace.workspaceFolders});
@@ -256,6 +276,18 @@ function moveDir(source: string, dest: string) {
             window.showErrorMessage(err);
             console.log(err);
         }
+    });
+}
+
+async function executeTask(task: Task) {
+    await tasks.executeTask(task);
+    return new Promise<void>(resolve => {
+        let disposable = tasks.onDidEndTask(e => {
+            if (e.execution.task === task) {
+                disposable.dispose();
+                resolve();
+            }
+        });
     });
 }
 
