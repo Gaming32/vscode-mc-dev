@@ -184,7 +184,7 @@ export async function newFabricProject(context: ExtensionContext) {
         templateExpansions.modVersion = "0.0.1";
         templateExpansions.modGroupId = groupId;
         templateExpansions.modid = modid;
-        templateExpansions.fabricApiVersion = "0.48.0+1.18.2 # This is hardcoded, use https://fabricmc.net/develop/ to get the version you want.";
+        templateExpansions.fabricApiVersion = "0.48.0+1.18.2";
         templateExpansions.modPackage = `${groupId}.${modid.replaceAll("-", "")}`;
         await finalizeTemplate(projectDir, templateExpansions, ["gradle-wrapper.jar", "gradlew", "gradlew.bat"]);
         const oldPackageDir = `${projectDir}/src/main/java/hardcodedRename`,
