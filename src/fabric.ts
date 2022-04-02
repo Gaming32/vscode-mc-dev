@@ -1,13 +1,16 @@
 import { commands, env, ExtensionContext, ProgressLocation, ShellExecution, ShellExecutionOptions, ShellQuoting, Task, TaskGroup, tasks, TaskScope, Uri, window, workspace } from "vscode";
 import fetch from "node-fetch";
-import { getApi, FileDownloader } from "@microsoft/vscode-file-downloader-api";
+import { getApi, FileDownloader } from "./fileDownloader/api";
 import { existsSync } from "fs";
 import extract = require("extract-zip");
 import mv = require("mv");
 import { lstat, mkdir, readdir, readFile, rename, writeFile } from "fs/promises";
 import { shellQuotes, sleep } from "./util";
+import OutputLogger from "./logging/OutputLogger";
 
-export async function newFabricProject(context: ExtensionContext) {
+export async function newFabricProject(context: ExtensionContext, log: OutputLogger) {
+    logger = log;
+
     await downloadFabricGameVersions();
     const versionListing = [{label: "Snapshots", version: <FabricGameVersion | null>null}].concat(
         MC_VERSIONS.flatMap(version =>
@@ -91,7 +94,7 @@ export async function newFabricProject(context: ExtensionContext) {
         return;
     }
 
-    const fileDownloader: FileDownloader = await getApi();
+    const fileDownloader: FileDownloader = await getApi(logger);
     window.withProgress({location: ProgressLocation.Notification, title: "Setting up project", cancellable: true}, async (prog, cancel) => {
         var totalProgress = 0;
         prog.report({message: "Downloading template...", increment: 0});
@@ -139,7 +142,7 @@ export async function newFabricProject(context: ExtensionContext) {
             loaderVersion.push(...jsonVersions);
         } catch (error) {
             window.showErrorMessage("Failed to request additional data");
-            console.error(error);
+            logger.error(error);
             return;
         }
 
@@ -184,7 +187,7 @@ export async function newFabricProject(context: ExtensionContext) {
         templateExpansions.modVersion = "0.0.1";
         templateExpansions.modGroupId = groupId;
         templateExpansions.modid = modid;
-        templateExpansions.fabricApiVersion = "0.48.0+1.18.2";
+        templateExpansions.fabricApiVersion = "0.48.0+1.18.2"; // TODO: make this not hardcoded
         templateExpansions.modPackage = `${groupId}.${modid.replaceAll("-", "")}`;
         await finalizeTemplate(projectDir, templateExpansions, ["gradle-wrapper.jar", "gradlew", "gradlew.bat"]);
         const oldPackageDir = `${projectDir}/src/main/java/hardcodedRename`,
@@ -274,7 +277,7 @@ function moveDir(source: string, dest: string) {
     mv(source, dest, {clobber: false}, err => {
         if (err) {
             window.showErrorMessage(err);
-            console.log(err);
+            logger.log(err);
         }
     });
 }
@@ -298,10 +301,10 @@ async function downloadFabricGameVersions() {
             const jsonVersions = await response.json();
             MC_VERSIONS.splice(0, MC_VERSIONS.length, ...jsonVersions as FabricGameVersion[]);
             mcVersionsDefault = false;
-            console.log("Downloaded Fabric game versions");
+            logger.log("Downloaded Fabric game versions");
         } catch (error) {
-            console.error("Failed to download Fabric game versions, using defaults");
-            console.error(error);
+            logger.error("Failed to download Fabric game versions, using defaults");
+            logger.error(error);
         }
     }
 }
@@ -375,3 +378,5 @@ const MC_VERSIONS: FabricGameVersion[] = [
     {version: "1.16", stable: true},
 ];
 var mcVersionsDefault = true;
+
+var logger: OutputLogger;

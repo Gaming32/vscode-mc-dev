@@ -1,7 +1,10 @@
 import { ExtensionContext, commands, window, env, Uri } from 'vscode';
 import { newFabricProject } from './fabric';
+import OutputLogger from './logging/OutputLogger';
 
 export function activate(context: ExtensionContext) {
+    const logger = new OutputLogger("MC Dev", context);
+
     context.subscriptions.push(commands.registerCommand('vscode-mc-dev.createMinecraftMod', async () => {
         const projectType = await window.showQuickPick(
             [
@@ -17,7 +20,7 @@ export function activate(context: ExtensionContext) {
             }
         );
         try {
-            projectType?.action(context);
+            projectType?.action(context, logger);
         } catch (error) {
             console.error(error);
             if (await window.showErrorMessage(`Internal error!\n${error}`, "Send bug report") === "Send bug report") {
