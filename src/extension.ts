@@ -1,4 +1,4 @@
-import { ExtensionContext, commands, window } from 'vscode';
+import { ExtensionContext, commands, window, env, Uri } from 'vscode';
 import { newFabricProject } from './fabric';
 
 export function activate(context: ExtensionContext) {
@@ -16,7 +16,14 @@ export function activate(context: ExtensionContext) {
                 placeHolder: "Select the mod platform"
             }
         );
-        projectType?.action(context);
+        try {
+            projectType?.action(context);
+        } catch (error) {
+            console.error(error);
+            if (await window.showErrorMessage(`Internal error!\n${error}`, "Send bug report") === "Send bug report") {
+                env.openExternal(Uri.parse("https://github.com/Gaming32/vscode-mc-dev/issues"));
+            }
+        }
     }));
 }
 
