@@ -5,7 +5,6 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { Readable } from "stream";
-import * as extractZip from 'extract-zip';
 import { CancellationToken, ExtensionContext, Uri } from "vscode";
 import { v4 as uuid } from "uuid";
 import { rimrafAsync } from "./utility/FileSystem";
@@ -61,7 +60,6 @@ export default class FileDownloader implements IFileDownloader {
         const timeoutInMs = settings?.timeoutInMs ?? DefaultTimeoutInMs;
         const retries = settings?.retries ?? DefaultRetries;
         const retryDelayInMs = settings?.retryDelayInMs ?? DefaultRetryDelayInMs;
-        const shouldUnzip = settings?.shouldUnzip ?? false;
         let progress = 0;
         let progressTimerId: any;
         try {
@@ -86,19 +84,10 @@ export default class FileDownloader implements IFileDownloader {
                 onDownloadProgressChange
             );
 
-            const writeStream = fs.createWriteStream(shouldUnzip ? tempZipFileDownloadPath : tempFileDownloadPath);
+            const writeStream = fs.createWriteStream(tempFileDownloadPath);
             const pipelinePromise = pipelineAsync([downloadStream, writeStream]);
             const writeStreamClosePromise = new Promise(resolve => writeStream.on(`close`, resolve));
             await Promise.all([pipelinePromise, writeStreamClosePromise]);
-
-            if (shouldUnzip) {
-                const unzipDownloadedFileAsyncFn = async (): Promise<void> => {
-                    await fs.promises.access(tempZipFileDownloadPath);
-                    await extractZip(tempZipFileDownloadPath, { dir: tempFileDownloadPath });
-                    await rimrafAsync(tempZipFileDownloadPath);
-                };
-                await RetryUtility.exponentialRetryAsync(unzipDownloadedFileAsyncFn, unzipDownloadedFileAsyncFn.name, retries, retryDelayInMs);
-            }
 
             // Set progress to 100%
             if (onDownloadProgressChange != null) {
